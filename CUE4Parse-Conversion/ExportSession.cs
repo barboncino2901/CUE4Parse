@@ -26,6 +26,10 @@ public sealed class ExportSession(Action<StreamingLevelFilterArgs, CancellationT
 
     public int MaxDegreeOfParallelism { get; init; } = Environment.ProcessorCount;
 
+    /// <summary>Keep texture files already in the output folder that were written after this time (e.g. the last game
+    /// update) instead of decoding them again. Null: always export.</summary>
+    public DateTime? ReuseTexturesWrittenAfter { get; init; }
+
     private DirectoryInfo? _baseDirectory;
     internal DirectoryInfo BaseDirectory => _baseDirectory ?? throw new InvalidOperationException("Session is not currently running.");
 

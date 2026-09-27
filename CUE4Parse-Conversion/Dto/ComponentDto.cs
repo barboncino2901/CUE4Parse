@@ -198,9 +198,13 @@ public class LandscapeMeshComponentDto : PrimitiveComponentDto
 
 public class StaticMeshComponentDto : MeshComponentDto
 {
+    /// <summary>Vertex colors painted on this placed mesh in the level editor (LOD0), replacing the mesh's own.</summary>
+    public readonly FColor[]? OverrideVertexColors;
+
     public StaticMeshComponentDto(FPackageIndex meshPtr, UStaticMeshComponent component, ActorDto owner) : base(meshPtr, component, owner)
     {
-
+        if (component.LODData is { Length: > 0 } lods && lods[0].OverrideVertexColors?.Data is { Length: > 0 } colors)
+            OverrideVertexColors = colors;
     }
 
     protected StaticMeshComponentDto(FPackageIndex meshPtr, ActorDto owner) : base(meshPtr, owner)

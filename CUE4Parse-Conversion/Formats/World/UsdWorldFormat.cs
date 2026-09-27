@@ -77,6 +77,8 @@ public class UsdWorldFormat : IWorldExportFormat
                 break;
             case MeshComponentDto mesh when paths.TryGet(mesh.MeshPtr, out var meshPath):
                 prim = ReferenceMesh("Mesh", component.Name, meshPath, mesh.OverrideMaterials, paths);
+                if (mesh is StaticMeshComponentDto { OverrideVertexColors: { } overrideColors })
+                    AddVertexColors(prim, overrideColors);
                 break;
             case MeshComponentDto:
                 prim = CreateDummyCube(component.Name);
@@ -111,6 +113,22 @@ public class UsdWorldFormat : IWorldExportFormat
         }
         prim.Add(transform.ToTransformAttributes());
         return prim;
+    }
+
+    // Same layout as the mesh export's own vertex colors, so these simply win over the referenced ones.
+    private static void AddVertexColors(UsdPrim prim, FColor[] vertexColors)
+    {
+        var colors = new UsdValue[vertexColors.Length];
+        var opacities = new UsdValue[vertexColors.Length];
+        for (var i = 0; i < vertexColors.Length; i++)
+        {
+            var color = vertexColors[i];
+            colors[i] = UsdValue.Tuple(color.R / 255f, color.G / 255f, color.B / 255f);
+            opacities[i] = UsdValue.Float(color.A / 255f);
+        }
+
+        prim.AddPrimvar("color3f[]", "primvars:displayColor", UsdValue.Array(colors), "vertex");
+        prim.AddPrimvar("float[]", "primvars:displayOpacity", UsdValue.Array(opacities), "vertex");
     }
 
     private UsdPrim ReferencePrim(string typeName, string name, string path)
@@ -192,6 +210,8 @@ public class UsdWorldFormat : IWorldExportFormat
         if (paths.TryGet(ism.MeshPtr, out var meshPath))
         {
             prototypePrim = ReferenceMesh("Mesh", ism.Name, meshPath, ism.OverrideMaterials, paths);
+            if (ism.OverrideVertexColors is { } overrideColors) // painted once, shared by every instance
+                AddVertexColors(prototypePrim, overrideColors);
         }
         else
         {

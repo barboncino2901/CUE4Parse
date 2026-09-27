@@ -68,6 +68,14 @@ public abstract class ExporterBase : IExporter
     {
         try
         {
+            // decoding textures is the slow part of an export: reuse ones a previous export already wrote
+            if (Session.ReuseTexturesWrittenAfter is { } after && this is TextureExporter && !Session.Options.ExportAllTextureMips)
+            {
+                var existing = new FileInfo(Session.ResolveOutputPath(SavePath, Session.Options.TextureFormat.ToString()));
+                if (existing is { Exists: true, Length: > 0 } && existing.LastWriteTimeUtc > after)
+                    return new ExportResult(true, ObjectPath, [existing.FullName]);
+            }
+
             var files = BuildExportFiles(ct);
             if (files.Count == 0)
             {
