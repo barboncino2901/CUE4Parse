@@ -38,13 +38,29 @@ public partial class WwiseProvider
 
     private readonly Dictionary<uint, FGameFileDeferredByteData> _looseWemFilesLookup = [];
 
-    public WwiseProvider(AbstractVfsFileProvider provider, string gameDirectory)
+    // sound bank files by their path under the Wwise folder ("Event/Foo.bnk", "SB_Weapons_Base.bnk"), when loading on demand
+    private readonly Dictionary<string, GameFile> _soundBankFiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly bool _loadBanksOnDemand;
+
+    public WwiseProvider(AbstractVfsFileProvider provider, string gameDirectory) : this(provider, gameDirectory, false) { }
+
+    // loadBanksOnDemand: only index the files, and read the sound banks an event's cooked data names the first time
+    // that event is extracted, instead of reading every bank up front (much less memory and startup time; needs
+    // events with EventCookedData)
+    public WwiseProvider(AbstractVfsFileProvider provider, string gameDirectory, bool loadBanksOnDemand)
     {
         _provider = provider;
         _gameDirectory = gameDirectory;
         _baseWwiseAudioPath = Path.Combine(_provider.ProjectName, "Content", "WwiseAudio");
+        _loadBanksOnDemand = loadBanksOnDemand;
 
         LoadMultiReferenceLibrary();
+
+        if (loadBanksOnDemand)
+        {
+            IndexWwiseFiles();
+            return;
+        }
 
         if (!BulkInitializeWwise())
             throw new InvalidOperationException("Failed to initialize Wwise soundbanks. Ensure that the provider has files to work with.");
@@ -270,6 +286,33 @@ public partial class WwiseProvider
         {
             CacheWwiseFile(bulkPackagedSoundBank);
             _wwiseLoadedSoundBanks.Add(bulkPackagedSoundBank.Header.SoundBankId);
+        }
+        else if (bulkPackagedSoundBank is null && _loadBanksOnDemand && !_wwiseLoadedSoundBanks.Contains(soundBank.SoundBankId)
+                 && !soundBank.SoundBankPathName.IsNone
+                 && _soundBankFiles.TryGetValue(soundBank.SoundBankPathName.Text.Replace('\\', '/'), out var bankFile))
+        {
+            TryLoadAndCacheWwiseFile(bankFile);
+            _wwiseLoadedSoundBanks.Add(soundBank.SoundBankId); // also when it failed, so it isn't read again
+        }
+    }
+
+    private void IndexWwiseFiles()
+    {
+        var root = _baseWwiseAudioPath.Replace('\\', '/').TrimEnd('/') + "/";
+        foreach (var file in _provider.Files.Values)
+        {
+            if (!_validWwiseExtensions.Contains(file.Extension))
+                continue;
+
+            if (file.Extension.Equals("wem", StringComparison.OrdinalIgnoreCase))
+            {
+                if (uint.TryParse(file.NameWithoutExtension, out var wemId) && !_looseWemFilesLookup.ContainsKey(wemId))
+                    _looseWemFilesLookup[wemId] = new FGameFileDeferredByteData(file);
+            }
+            else if (file.Path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                _soundBankFiles.TryAdd(file.Path[root.Length..], file);
+            }
         }
     }
 
