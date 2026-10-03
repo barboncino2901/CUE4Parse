@@ -257,7 +257,15 @@ public partial class WwiseProvider
         };
 
         if (data is null)
+        {
+            // loading on demand: media missing from the files is expected (a voice language the game didn't install)
+            if (_loadBanksOnDemand)
+            {
+                Log.Debug("No data for '{WemFileName}' ({Language}), skipped", wemFileName, languageData.LanguageName.Text);
+                return;
+            }
             Log.Error("Failed to load data for '{WemFileName}' wem loose file", wemFileName);
+        }
 
         var mediaDebugName = !string.IsNullOrEmpty(media.DebugName.Text) && !media.DebugName.IsNone
             ? media.DebugName.Text.SubstringBeforeLast('.')

@@ -258,7 +258,10 @@ public partial class WwiseProvider
             var hasEncodedMedia = _provider._wwiseEncodedMedia.TryGetValue(fileName, out var wemData);
             if (!hasLooseFile && !hasEncodedMedia)
             {
-                Log.Error("Failed to load data for '{WemId}' wem file during event resolution", wemId);
+                if (_provider._loadBanksOnDemand) // expected for media of languages the game didn't install
+                    Log.Debug("No data for '{WemId}' wem file during event resolution, skipped", wemId);
+                else
+                    Log.Error("Failed to load data for '{WemId}' wem file during event resolution", wemId);
                 return;
             }
 
